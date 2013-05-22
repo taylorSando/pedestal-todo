@@ -7,8 +7,6 @@
             [todo.behavior :as behavior]
             [todo.rendering :as rendering]))
 
-;; In this namespace, the application is built and started.
-
 (defn create-app [render-config]
   (let [;; Build the application described in the map
         ;; 'behavior/example-app'. The application is a record which
