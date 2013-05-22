@@ -11,13 +11,15 @@
   
   <div id="content">
     
-    <div template="hello" field="id:id">            
+    <div template="hello" field="id:id">
+      <input id="new-todo" placeholder="What needs to be done?" autofocus>
     </div>
     
     
     <div template="task" field="id:id">
       <input type="checkbox" />
       <div field="content:details"></div>
+      <div field="content:completed"></div>
     </div> 
 
   </div>

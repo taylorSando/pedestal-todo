@@ -7,11 +7,11 @@
 
   (p/put-message (:input app) {msg/type :create-tasks msg/topic [:tasks]})
   (p/put-message (:input app) {msg/type :add-task msg/topic [:tasks]
-                               :value {:details "I am a task"}})
+                               :details "I am a task"})
   (p/put-message (:input app) {msg/type :add-task msg/topic [:tasks]
-                               :value {:details "I am a task1"}})
+                               :details "I am a task13"})
   (p/put-message (:input app) {msg/type :add-task msg/topic [:tasks]
-                               :value {:details "I am a task2"}})
+                               :details "I am a task2"})  
   #_(platform/create-timeout 3000
                            #(p/put-message (:input app) {msg/type :remove-task msg/topic [:tasks]
                                                         :value {:details "I am a third task"}}))
