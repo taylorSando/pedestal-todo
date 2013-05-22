@@ -14,6 +14,8 @@
   ;; The last argument to 'dtfn' is a set of fields that should be
   ;; treated as static fields (may only be set once). Dynamic templates
   ;; use ids to set values so you cannot dynamically set an id.
-  {:todo-page (dtfn (tnodes "todo.html" "hello") #{:id})})
+  {:todo-page (dtfn (tnodes "todo.html" "hello") #{:id})}
+  ;{:task (dtfn (tnodes "todo.html" "task") #{:id})}
+  )
 
 ;; Note: this file will not be reloaded automatically when it is changed.
