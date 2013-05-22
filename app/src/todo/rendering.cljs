@@ -16,18 +16,19 @@
     (dom/append! (dom/by-id parent) (html {:id id}))))
 
 
-#_(defn render-task [renderer [_ path] transmitter]
+(defn render-task [renderer [_ path] transmitter]
   (let [parent (render/get-parent-id renderer path)        
         id (render/new-id! renderer path)        
         html (templates/add-template renderer path (:task templates))]    
     (dom/append! (dom/by-id parent) (html {:id id}))))
 
 (defn render-message [renderer [_ path _ new-value] transmitter]
-  (templates/update-t renderer path {:message new-value}))
+  (templates/update-t renderer path {:details (:details new-value)}))
 
-(defn render-config []
+(defn render-config []  
   [[:node-create  [:tasks] render-page]
-   ;[:node-create  [:tasks :*] render-task]   
+   [:node-create  [:tasks :*] render-task]
+   [:value [:tasks :*] render-message]
    [:node-destroy   [:tasks] d/default-exit]   
    [:value [:greeting] render-message]])
 
