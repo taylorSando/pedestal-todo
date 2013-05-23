@@ -22,11 +22,20 @@
     (dom/append! (dom/by-id parent) (html {:id id}))))
 
 
+(defn render-task-count [renderer [_ path] transmitter]
+  (let [parent (render/get-parent-id renderer path)        
+        id (render/new-id! renderer path)        
+        html (templates/add-template renderer path (:task-count templates))]    
+    (dom/append! (dom/by-id parent) (html {:id id}))))
+
 (defn render-task [renderer [_ path] transmitter]
   (let [parent (render/get-parent-id renderer path)        
         id (render/new-id! renderer path)        
         html (templates/add-template renderer path (:task templates))]    
     (dom/append! (dom/by-id parent) (html {:id id}))))
+
+(defn render-task-count-value [renderer [_ path _ new-value] transmitter]
+  (templates/update-t renderer path {:tasks-left (:tasks-left new-value)}))
 
 (defn render-message [renderer [_ path _ new-value] transmitter]
   (templates/update-t renderer path {:details (:details new-value) :completed (str (:completed new-value))}))
@@ -47,11 +56,14 @@
 
 ;; Need to add key down handlers
 
+;; msg/fill can add details to many related messages
+;; must pass each individual message to the input queue
 
 (defn render-config []  
-  [[:node-create  [:tasks] render-page]
-   [:node-create  [:tasks :*] render-task]
-   [:transform-enable [:tasks] (fn [r [_ p k messages] input-queue]
+  [[:node-create  [:todo] render-page]
+   #_[:node-create  [:tasks :count] render-task-count]   
+   #_[:node-create  [:tasks :*] render-task]   
+   #_[:transform-enable [:tasks] (fn [r [_ p k messages] input-queue]
                                  (let [todo-input (dom/by-id "new-todo")]
                                   (de/listen! todo-input :keydown
                                               (fn [e]
@@ -63,10 +75,11 @@
                                                       (p/put-message input-queue m)))
                                                   ))))                                    
                                     )]
-   [:value [:tasks :*] render-message]
-   [:transform-enable [:tasks :*] (fn [r [_ p k msgs] input-queue]
+   ;[:value [:tasks :count] render-task-count-value]
+   ;[:value [:tasks :*] render-message]
+   #_[:transform-enable [:tasks :*] (fn [r [_ p k msgs] input-queue]
                                     (evts/send-on :click (dc/sel (str "#" (render/get-id r p) " input")) input-queue msgs )
                                     )]
-   [:node-destroy   [:tasks] d/default-exit]])
+   [:node-destroy   [:todo] d/default-exit]])
 
 

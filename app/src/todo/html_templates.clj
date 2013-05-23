@@ -15,6 +15,7 @@
   ;; treated as static fields (may only be set once). Dynamic templates
   ;; use ids to set values so you cannot dynamically set an id.
   {:todo-page (dtfn (tnodes "todo.html" "hello") #{:id})
+   :task-count (dtfn (tnodes "todo.html" "task-count") #{:id})
    :task (dtfn (tnodes "todo.html" "task") #{:id})}
   )
 
