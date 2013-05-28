@@ -38,7 +38,7 @@
     ;; Start the application
     (app/begin app)
     ;; Send a message to the application so that it does something.
-    (p/put-message (:input app) {msg/type :set-value msg/topic [:greeting] :value "Hello World!"})
+    (p/put-message (:input app) {msg/type :create-todo msg/topic [:todo]})    
     ;; Returning the app and app-model from the main function allows
     ;; the tooling to add support for useful features like logging
     ;; and recording.
