@@ -1,6 +1,7 @@
 A todo app written with the pedestal framework.
 
 To run, clone the repo
+
 Navigate to the root directory of repo
 
 Create a repl
