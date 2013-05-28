@@ -1,9 +1,19 @@
-# todo
+A todo app written with the pedestal framework.
 
-Start working on this application by writing its behavior in the file
-`app/src/todo/behavior.clj`
+To run, clone the repo
+Navigate to the root directory of repo
 
-## Links
+Create a repl
+lein rel
+(dev)
+(start)
 
-* [Getting Started](https://github.com/pedestal/pedestal/tree/master/app#usage)
-* [Overview of how pedestal applications work](http://pedestal.io/documentation/application-overview/)
+Navigate to localhost:3000/todo-data-ui.html
+
+It should work
+
+If you want to change the port number if starts at try the following:
+Use: (run port-number :todo) where port-number is the port number, i.e. (run 8000 :todo)
+lein repl
+(dev)
+(run 8000 :todo)
