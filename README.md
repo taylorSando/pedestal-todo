@@ -7,7 +7,7 @@ Navigate to the root directory of repo
 Create a repl
 
 ```
-lein rel
+lein repl
 (dev)
 (start)
 ```
