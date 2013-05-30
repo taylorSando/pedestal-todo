@@ -1,6 +1,11 @@
 A todo app written with the pedestal framework.
 
-To run, clone the repo
+Make sure that you have the pedestal app installed
+
+You should clone the pedestal app first at https://github.com/pedestal/pedestal
+Then run **lein sub install** in the root directory of the repository
+
+Now, to run the todo app, clone this repo
 
 Navigate to the root directory of repo
 
@@ -9,7 +14,7 @@ Create a repl
 ```
 lein repl
 (dev)
-(start)
+(run 3000 :todo)
 ```
 
 Navigate to localhost:3000/todo-data-ui.html
