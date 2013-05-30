@@ -3,6 +3,7 @@ A todo app written with the pedestal framework.
 Make sure that you have the pedestal app installed
 
 You should clone the pedestal app first at https://github.com/pedestal/pedestal
+
 Then run **lein sub install** in the root directory of the repository
 
 Now, to run the todo app, clone this repo
