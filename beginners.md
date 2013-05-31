@@ -130,6 +130,7 @@ When the value of a data model changes, a :value application delta is created.
 
 In this example, two :node-create got created, and one :value application delta happened.  The 3rd item in the :value delta specifies the old value, which is nil, meaning it had no old value.  The 4th item represents the value of the id, which is 'task-4.  This exact sequence of :node-create and :value need not to be how the application deltas *must* be represented, rather this is one possible interpretation.  For example:
 
+```clojure
 ;; Original Data Model
 {:todo
  {:tasks
@@ -154,21 +155,204 @@ Here, we have two different ways of representing the same thing.  A single :valu
 One final point about the :value application delta.  There is a 3 argument version, where the 3rd argument specifies the new value, and there is no fourth value.
 
 ```clojure
-
 ;; Mean the same thing
 [:value [:todo :tasks 'task-4] nil {:id 'task-4}]
 [:value [:todo :tasks 'task-4] {:id 'task-4}]
-
 ```
 I would suggest always using the four argument version to reduce confusion.
 
 
 ###:attr
 
+Related to a node's value is its attributes.  Attributes provide a more fine grained control over a node's content.
+
+```clojure
+;; Data Model
+{:todo
+ {:tasks
+  {'task-4
+   {:id 'task-4
+    :completed true
+	:details "Pick up the dog"
+	:created-at "1369634836"}}}}
+
+;; One possible sequence of Application Deltas
+[:node-create [:todo :tasks 'task-4] :map]
+[:value [:todo :tasks 'task-4] nil "Pick up the dog"]
+[:attr [:todo :tasks 'task-4] :id nil 'task-4]
+[:attr [:todo :tasks 'task-4] :completed nil true]
+[:attr [:todo :tasks 'task-4] :created-at nil "1369634836"]
+```
+
+Here we are creating a node at [:todo :tasks 'task-4].  We assign the value of **Pick up the dog**, which is the data model's :details value.  There are three attributes, corresponding to the :id, :completed and :created-at fields.  When to use values and attrs, and choosing one over the other will be talked about later.  For now, realize that an :attr application delta is made up of 5 values.  The first is the :attr type, the second is the path, the third is the attribute name, the four item is the old attribute value, and the fifth item is the new attribute value.
+
+
+### :transform-enable
+
+The most common use case for consuming application deltas is a view of some kind.  A view is something that a user should be able to interact with.  Therefore, there needs to be a way to communicate back to the application data model.  The way to facilitate this interaction is through the use of application deltas called :transforms.  An application delta of :transform-enable says that interaction with the data model is possible.  What a transform does is specify a series of messages that will be sent to the application's input queue.
+
+```clojure
+;; Data Model
+{:todo
+ {:tasks
+  {'task-4
+   {:id 'task-4
+    :completed true
+	:details "Pick up the dog"
+	:created-at "1369634836"}}}}
+
+;; Application Delta
+[:transform-enable
+ [:todo :tasks 'task-4 :details]
+ :change-task
+ [{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+   io.pedestal.app.messages/type :update-details}
+   (io.pedestal.app.messages/param :details) {}]
+]
+```
+
+A :transform-enable generally has four components.  The first item is the application delta type, which is obviously :transform-enable.  The second item is the path, the third item is the transform key, which helps identify the transform.  The fourth item is a vector containing messages.  In this example, we have a vector containing a single message.
+
+The message identifies the topic as [:todo :tasks 'task-4 :details] and the type as :update-details.  It also contains a param function.  This can be used will the fill function from the **io.pedestal.app.messages** namespace.  For example, you can use **io.pedestal.app.messages/fill** with the messages vector in the following way:
+
+```clojure
+(io.pedestal.app.messages/fill :update-details
+                               [{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+                                 io.pedestal.app.messages/type :update-details
+                                (io.pedestal.app.messages/param :details) {}}]
+                               {:details "Pick up the cat"})
+;; becomes
+
+[{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+   io.pedestal.app.messages/type :update-details
+   :details "Pick up the cat"}]
+```
+
+What is happening here is that io.pedestal.app.messages/fill takes three parameters.  The first parameter is the type value.  This corresponds to the type in the message if it exists.  The second parameter is the actual vector of messages.  The last item is the map which should be use to fill the param values in the message.  The fill function can do this for multiple messages.  The messages must specify a type message that matches the fill's first parameter type value.  
+
+```clojure
+
+(io.pedestal.app.messages/fill :update-details
+                               [{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+                                 io.pedestal.app.messages/type :update-details
+                                (io.pedestal.app.messages/param :details) {}}
+                                {io.pedestal.app.messages/topic [:todo :tasks 'task-5 :details]
+                                 (io.pedestal.app.messages/param :details) {}}]
+                               {:details "Pick up the cat"})
+
+;; becomes
+[{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+  io.pedestal.app.messages/type :update-details
+  :details "Pick up the cat"}
+ {io.pedestal.app.messages/topic [:todo :tasks 'task-5 :details]
+  io.pedestal.app.messages/type :update-details
+  :details "Pick up the cat"}]
+```
+
+In this example, there are two messages in the vector.  The second message does not specify a type parameter, but the fill message fills it in anyways.
+
+An application delta that produces a :transform-enable does not mean that a message has been, or will be sent.  It simply sets up the possibility of sending a message back to the input queue.  It is up to the function consuming the app model and the :transform-enable application delta to stick the messages back into the application's input queue.  In these examples, the messages will update the details on the todo tasks.  This might happen if the user was interacting with a web form, and they typed in a text box and saved the results.  How this gets wired up will come later.  For now, just understand that a :transform-enable sets up messages that can be sent back to the application through the input queue.
+
+###:transform-disable
+
+This is the opposite of :transform-enable.  It is designed to stop any messages from being sent to the application input queue.  For example, if the user is no longer on the todo form, it doesn't make sense to continue to have the ability for the view function to send messages back to the application input queue that have to do with the todo tasks.
+
+```clojure
+[:transform-disable [:todo :tasks 'task-id :details] :change-task]
+[:transform-disable [:todo :tasks 'task-id :details]]
+```
+
+A :transform-disable is made up of three items.  The first is the type, the second is the path, and the third item is the transform key.  The third parameter is optional. In the above example, the first :transform-disable will specifically remove all messages related to :change-task at the path, while the second one will remove all transforms at the path.
+
+```clojure
+[[:transform-enable
+ [:todo :tasks 'task-4 :details]
+ :change-task
+ [{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+   io.pedestal.app.messages/type :update-details}
+   (io.pedestal.app.messages/param :details) {}]]
+[:transform-enable
+ [:todo]
+ :add-task
+ [{io.pedestal.app.messages/topic [:todo]
+   io.pedestal.app.messages/type :new-task}
+   (io.pedestal.app.messages/param :details) {}
+   (io.pedestal.app.messages/param :completed) {}]]
+[:transform-enable
+ [:todo]
+ :remove-task
+ [{io.pedestal.app.messages/topic [:todo]
+   io.pedestal.app.messages/type :remove-task}
+   (io.pedestal.app.messages/param :id) {}]]]
+
+;; There are three transforms active
+
+;; This would remove the details transform
+[:transform-disable [:todo :tasks 'task-4 :details]]
+
+;; This would remove the :remove-task transform, but leave the :add-task
+[:transform-disable [:todo] :remove-task]
+
+;; This would remove both
+[:transform-disable [:todo]]
+```
+
+
+## Dataflow
+
+The dataflow is the actual functions that control an application.  The dataflow is designed to take messages from the input queue.  It then processes these messages, one by one.  As it is processing the message, it might update the data model.  It can also produce messages of its own.  For example, it may also produce application delta messages that will be placed on the app model queue. It may also produce output messages, which are placed onto the output queue, which may be consumed by some external service.  There are five dataflow functions, transforms, derives, continues, emits and effects.
+
+## Transform
+
+The most basic dataflow component is the transform.  Do not confuse a dataflow transform with a :transform-enable from the application deltas, they are separate things.  A transform is used to update the data model.  A transform is made up of three components.  The first component is the transform's key.  The key helps identify the transform for a message.  It corresponds to the **io.pedestal.app.messages/type** component of a message.  The second component of a transform is the output path.  This is the location in the data model that holds the transform's value.  For example, if the output path was [:todo :tasks], and the value there was **{'task-4 {:id 'task-4 :details "Pick up trash"}}**, then we would say that the transform's value was equal to that task map.  The third component of a transform is the function that is used to process messages.
+
+So let's put this all together.  A message comes into the dataflow, and the first thing that processes the message is the transform dataflow components.  In order for a transform to handle a message, it must first match a message.  For a message to match a transform function, two things must match.  The message's type must match the transform's key, and the message's topic must match the transform's output path.
+
+```clojure
+{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
+:io.pedestal.app.messages/type :update-details
+:details "Write a tutorial"}
+
+;; Would match
+[:update-details [:todo :tasks 'task-4 :details] 'transform-fn]
+
+;; Would not match
+[:update-details [:todo :tasks] 'transform-fn]
+[:update-id [:todo :tasks 'task-4 :details] 'transform-fn]
+```
+
+When a message is found to match a transform dataflow, the transform function is called.  This function gets two values.  The first value is the old value that was held at the transform's output path.  The second value is the message.
+
+```clojure
+
+;; Original data model
+{:todo {:tasks [{:id "id1" :details "Pick up milk"}]}}
+
+;; Message
+{io.pedestal.app.messages/topic [:todo]
+ :io.pedestal.app.messages/type :new-task
+ :details "Write a tutorial"}
+
+;; transform function
+(defn new-task-handler [old-todo msg]
+  (assoc old-todo :tasks
+         (conj (:tasks old-todo)
+               {:details (:details msg) :id (gensym "id")})))
+
+;; Transform dataflow
+[:new-task [:todo] new-task-handler]
+
+
+;; New data model
+{:todo {:tasks [{:id "id1" :details "Pick up milk"}
+                {:id "id2" :details "Write a tutorial"}]}}
+```
+
+
+So the message is passed to the input queue and into the dataflow.  The only transform component that can handle the message is the one with the key of :new-task and an output task of [:todo].  This is because :new-task matches the message's type, and the [:todo] of the topic matches the transform's output path.  Next, the transform function is called, which receives the old todo data along with the message.  Inside the function, we are associated the old todo with the tasks.  Since tasks is a vector, we are conj'ing the new task onto the old tasks.  We automatically create an id, but use the extract the details from the message and create a map.  This is placed onto the tasks.  At the end, the data model is now updated.
 
 
 
-The DOM renderer is used to store a projection of the DOM tree internally in a clojure data structure.  The DOM renderer object mirrors the actual DOM found in web browsers.  It is used to store html templates, data, and ids for DOM elements.  
 
 
 
@@ -182,7 +366,7 @@ The DOM renderer is used to store a projection of the DOM tree internally in a c
 
 
 
-
+# This will be the more in depth guide to the todo app
 
 
 

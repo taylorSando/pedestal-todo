@@ -12,3 +12,8 @@
   :resource-paths ["config"]
   :target-path "out/"
   :aliases {"dumbrepl" ["trampoline" "run" "-m" "clojure.main/main"]})
+
+(defn new-task-handler [old-todo msg]
+  (assoc old-todo :tasks
+         (conj (:tasks old-todo)
+               {:details (:details msg) :id (gensym "id")})))
