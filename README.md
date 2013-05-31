@@ -25,7 +25,7 @@ Create a repl
 ```
 lein repl
 (dev)
-(start)
+(run)
 ```
 
 Navigate to localhost:3000/todo-data-ui.html
