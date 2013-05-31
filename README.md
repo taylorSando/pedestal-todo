@@ -1,12 +1,22 @@
+### To Do in Pedestal
 A todo app written with the pedestal framework.
 
-Make sure that you have the pedestal app installed
+### Prerequisites
 
-You should clone the pedestal app first at https://github.com/pedestal/pedestal
+The app depends upon the app-tools and app-template components from the pedestal project. These are not avalaible in clojars and thus need to be pulled in from the pedestal project.
 
-Then run **lein sub install** in the root directory of the repository
+- Clone the pedestal repo -
 
-Now, to run the todo app, clone this repo
+``` bash
+ git clone git://github.com/pedestal/pedestal.git
+
+```
+- Change into the cloned repo
+- run ``` lein sub install ``` to install the components.
+
+### Project Installation
+
+To run, clone the repo
 
 Navigate to the root directory of repo
 
@@ -15,7 +25,7 @@ Create a repl
 ```
 lein repl
 (dev)
-(run 3000 :todo)
+(run)
 ```
 
 Navigate to localhost:3000/todo-data-ui.html
