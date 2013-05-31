@@ -1,3 +1,5 @@
+**This is a work in progress**
+
 The beginners guide to Pedestal
 
 
@@ -86,7 +88,6 @@ The sequence of application deltas to create this could be:
 When the data model removes an item, a :node-destroy application delta can be created.  For example:
 
 ```clojure
-
 ;; Original data model
 {:todo
  {:tasks
@@ -110,7 +111,6 @@ In this example, there are two :node-destroy that occur.  This is because two va
 When the value of a data model changes, a :value application delta is created.
 
 ```clojure
-
 ;; Original Data Model
 {:todo
  {:tasks
