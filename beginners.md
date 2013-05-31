@@ -9,7 +9,7 @@ This guide assumes that you already know basic clojure and know how to use leini
 
 There are two sides to pedestal.  There is the application side, and then there is the services/server side.  For now, I will be focusing on the application side.
 
-One of the most important concepts in applications is the idea of messages.  They are what allow the components of the application to be decoupled.  Messages are defined primarily by two parts.  The first part of a message is its topic, and the second part of a message is its type.
+One of the most important components in the pedestal application is messages.  They are what allow the separate components of the application to be decoupled.  Messages are defined primarily by two parts.  The first part of a message is its topic, and the second part of a message is its type.
 
 ```clojure
 {io.pedestal.app.messages/topic [:todo] io.pedestal.app.messages/type :create-todo}
@@ -349,17 +349,331 @@ When a message is found to match a transform dataflow, the transform function is
 ```
 
 
-So the message is passed to the input queue and into the dataflow.  The only transform component that can handle the message is the one with the key of :new-task and an output task of [:todo].  This is because :new-task matches the message's type, and the [:todo] of the topic matches the transform's output path.  Next, the transform function is called, which receives the old todo data along with the message.  Inside the function, we are associated the old todo with the tasks.  Since tasks is a vector, we are conj'ing the new task onto the old tasks.  We automatically create an id, but use the extract the details from the message and create a map.  This is placed onto the tasks.  At the end, the data model is now updated.
+So the message is passed to the input queue, and into the dataflow.  The only transform component that can handle the message is the one with the key of :new-task and an output task of [:todo].  This is because :new-task matches the message's type, and the [:todo] of the topic matches the transform's output path.  Next, the transform function is called, which receives the old todo data along with the message.  Inside the function, we are associated the old todo with the tasks.  Since tasks is a vector, we are conj'ing the new task onto the old tasks.  We automatically create an id, but use the extract the details from the message and create a map.  This is placed onto the tasks.  At the end, the data model is now updated.
 
+There are actually two ways of defining a transform dataflow, with a vector, or with a map.
 
+```clojure
+; Vector way
+[:new-task [:todo] new-task-handler]
+; Map way
+{:fn new-task-handler :key :new-task :out [:todo]}
+```
 
+The vector must be in the following order, **[key out fn]**.
 
+## Derive
 
+The next dataflow component is the **derive**.  The derive component does not directly handle messages.  The derive component is concerned with changes in the data model.  For example, let us say you had an application that handled temperatures and did weather forecasts.  The *Wind Chill* is calculated by two variables, the wind speed and the outside temperature.  Therefore, if you know the wind speed, and you know the outside temperature, you can *derive* the wind chill.  This is the idea behind the derive dataflow.  It's designed to be used for values that can be derived, or calculated, based on existing values within the data model. A derive dataflow is triggered when its inputs change.  For example, if either the temperature, or the wind speed changes, then the wind chill changes.
 
+A derive dataflow is made up of three components.  The first is the **input paths**.  The input paths are the paths to the data model.  For example, this might be **#{[:app :sensor :temperature] [:app :sensor :wind-speed]}**.  The second component is the **output path**.  This is where the output of the derive value goes to.  It is a path in the data model, which is updated.  For example, this could be **[:app :values :wind-chill]**.  The third component is the actual **derive function**.  This is what is called when either of the inputs have changed.  The value that is produced by the derive function will be stored in the data model, at the location specified by the output path.
 
+There are two ways to create a derive dataflow, either with a vector, or with a map.
 
+```clojure
+;; Vector form
+[#{[:app :sensor :temperature] [:app :sensor :wind-speed]} [:app :values :wind-chill] wind-chill-fn]
+;; Map form
+{:fn wind-chill-fn :in #{[:app :sensor :temperature] [:app :sensor :wind-speed]} :out [:app :values :wind-chill] }
+```
 
+The vector form must be in the order of input, output and function.
 
+The derive function receives two arguments when it is called.  The first item is the old data model value at the output path.  The second item is a **tracking map**.  A tracking map is a special pedestal map that keeps track of changes in the data model.  A tracking map is made up of the following keys: **:removed, :added, :updated, :input-paths, :old-model, :new-model, and :message**.
+
+####:added
+
+This is a list of paths that have been added to the data model.  
+
+####:updated
+
+This is a list of paths that have been updated in the data model.
+
+####:removed
+
+This is a list of paths that have been removed in the data model.
+
+####:input-paths
+
+This is a list of the input paths that are defined by the derive function.  For example, it would contain [:app :sensor :temperature] and [:app :sensor :wind-speed].
+
+####:old-model
+This is the data model before the message was sent to the dataflow.  It contains all the values prior to any transform or derive dataflow function was called.
+
+####:new-model
+This is the current state of the data model.  It contains values that have been changed by the transforms or any derives.
+
+###:message
+This is the message that is currently active in the dataflow.
+
+In the case of the wind chill function, we are interested in the new values for temperature and wind speed.  Therefore, we need to grab those values from the :new-model.  Below is an example of how to put this all together.
+
+```clojure
+(defn temperature-fn [old-temp msg]
+  (:temperature msg))
+
+(defn wind-speed-fn [old-speed msg]
+  (:wind-speed msg msg))
+
+(defn wind-chill-fn [old-wind-chill inputs]
+  (let [t (get-in inputs [:new-model :app :sensor :temperature])
+        v (get-in inputs [:new-model :app :sensor :wind-speed])]
+    ;; simple wind chill formula is 0.0817 * (3.71v^0.5 + 5.81 – 0.25 V) * (T – 91.4) + 91.4
+    (+ (* 0.0817 (- (+ (* (Math/sqrt v) 3.71) 5.81) (* 0.25 v)) (- t 91.4)) 91.4)))
+
+(def dataflow
+  {:transform [[:set-temperature [:app :sensor :temperature] temperature-fn]
+               [:set-wind-speed [:app :sensor :wind-speed] wind-speed-fn]]
+   :derive [[#{[:app :sensor :temperature] [:app :sensor :wind-speed]} [:app :values :wind-chill] wind-chill-fn]]})
+```
+
+Transform functions are called first.  After they are finished, the derive functions are given a chance to run.  The Derive dataflow components only run if their inputs change.  It's possible for the output of one derive function to be the input of another derive function.  This means that you can have calculations that are dependent on other calculations.  For example, if there was a variable that depended on the wind chill, it would be called when the wind chill changed, and the wind chill would change if the temperature, or the wind speed changed.
+
+### Continue
+
+The next dataflow component is the continue.  The continue is a slightly advanced feature.  You might want to skip this section and return to it later.
+
+Continues are harder to understand, because they don't directly process messages, and they don't directly effect the data model.  Continues are used for generating messages that are used within the dataflow.  Messages are always processed one at a time.  This means that a single message from the input queue is completely processed by the dataflow before the next one can be processed.  The exception to this is if a continue function generates a message.  These messages are processed within the same dataflow transaction as the original message.  We will refer to this message as m0.
+
+m0 is first processed by the transform functions.  It may alter the data model.  If it does, the corresponding derive functions listening to that part of the data model are called.  When those functions have been ran, the continue components have a chance to run.  The continue dataflow functions will only run if their inputs were changed.  The continue dataflow is like the derive dataflow, in that both have inputs.  The difference is that the continue function creates messages, whereas the derive function outputs a value to the data model.
+
+To the outside world, the data model exists in one state before a message, and in another state after the message is processed.  The outsie world is not aware of any intermediate values that the transforms or derive components caused in the data model.
+
+With that in mind, let us imagine that you are a simple data analysis program.  Let us say that you need to analyze a series of data points.  Let us say that there are two possible intepretations of the data points.  There are two algorithms for analzying points.  Each algorithm analyzes the points in a different way and produces a certainity value that the points match the algorithm's parameters.  Each algorithm only gets a fixed amount of time to analyze their data before giving their certainity level.  In the application, there is a minimum certainity level that must be reached.
+
+The following are data:
+
+Minimum certainity threshold
+Maximum analysis time
+Algorithm A certainity level 
+Algorithm B certanity level
+The data points
+Final Decision
+
+There are four candidates for being transforms, minimum certainity threshold, maximum analysis time, data points and final decision.  These can be set by messages to the application.  The candidates for derives are the algorithm certainity levels, because they dependent on the three transform values.  We need to be certain that one of the algorithms reaches the required certainity threshold.  One option would be to allow each algorithm derive to extract the certainity level for the other algorithms in the tracking map parameter.  This is a problem, because now the algorithm is doing two things.  It's calculating its own certainity value, and it's also comparing itself to its other certainity level.  Let us say that we wanted to add additional algorithms, this would mean that each algorithm would need to be rewritten each time a new algorithm was added.  That's not a good situation to be in.
+
+An additional problem happens when you consider the fact that both algorithms may not reach the minimum certainity threshold.  In that case, one of three things could happen, you could increase the number of data points, you could increase the maximum analysis time, or you could decrease the certainity threshold.  Since transforms are only concerned with their own values, they can't do this.  A derive can only output to a single data model location, so it can't do it.  This is where the continue function comes in.  While the continue function does not directly change data models, it can produce messages within the same transaction, which can effect the data model.
+
+So let's take this from the top.  Let us assume that the minimum certainity level and the maximum calculation time already exist in the data model.  A new message, m0 comes into the dataflow.  It specifies a new series of data points.  The transform handling the data points writes the new data points.  Both derive algorithms detect the new data points and they run until they reach the maximum calculation time and produce their results.  Finally, the continue function detects new algorithm certainity values.  Let us say that one is 0.65, and the other is 0.5.  The minimum certainity level is 0.7, so there's a problem, we haven't reached the minimum certainity level.  Let us assume that we don't want to decrease the certanity level, and we can't increase the number of data points.  The alternative is to increase the maximum calculation time.  Therefore, the continue function creates a new message, m1.
+
+Assuming that m0 has been processed completely, m1 enters the dataflow.  First, the transforms get a chance to handle the message.  The transform responsible for the maximum calculation time is then changed.  The algorithm derive functions detect changes to their inputs, and they recalculate their certainity values using the new calculation time.  Let us say that the new certainities are 0.71 and 0.69.  The continue function would realize that 0.71 is greater than the other value, and also greater than the minimum, therefore it produces a new message, m2.  m2 is designed to set the final decision.  m2 then enters the dataflow.  The transform that handles the final decision data model updates its values.  No derive functions, and no continue functions are ran.  Therefore, we have a final value, and it's the algorithm A interpretation of the data points.
+
+You could ask why couldn't the continue functions simply change the data model themselves, instead of simply sending a message.  The answer is that it's a more decoupled design.  The continue function can send a message back to the transforms and derives, which can then handle that message, just like in a normal dataflow.  If a continue function could directly alter the data model, the continue function might be putting the data model into an invalid state.  For example, it could be altering a value that a derive function depends on.  The derive functino would not get an option to run again.  By strickly separating the dataflow into three distinct processes, you minimize complexity.
+
+First, the transform functions direclty alter the data model by using the message.  Next, the derive functions get a chance to run, assumign their inputs change.  The derive functions also update the data model.  This can lead to other derive functions being called, because it's possible for a derive function to depend on another one.  However, at some point, all the derive functions will stop running.  Then, it becomes time for the continue functions to run.  Continue functions, assuming their inputs change, have the opportunity to create new messages that are put on an internal queue.  Each of these messages will be processed, one by one, just like the messages from the normal app input queue.  Once all the messages have been processed, the data model will be left in its new, consistent state.  To the outside world, it will seem as though the single message push the data model into its new state on its own.  It has no idea how many continue messages may have been produced in the interim.
+
+Continue dataflow components have two elements.  The first is the list of inputs paths in the data model.  Whenever the value at one of these paths changes, the continue dataflow function is ran.  Which brings us to the second element of the continue dataflow, which is the continue function.  The continue function takes a single argument, a tracking map.  The continue function should then examine its inputs and do one of two things.  It should either produce a message, or messages, or it should return nothing.  By returning nothing, it signals that it has nothing left to do.  If the continue functions were to always return a message, the dataflow transaction would never complete.  So make sure that the continue function will eventually stop sending messages.
+
+There are two ways to create the continue dataflow.  As always, there is a vector form, and there is a map form.
+
+```clojure
+[ #{[:algorithms :a :certainity-value] [:algorithms :b :certainity-value]} continue-algorithm]
+{:in #{[:algorithms :a :certainity-value] [:algorithms :b :certainity-value]} :fn continue-algorithm}
+```
+To summarize, continue functions are designed to act as a kind of validation on the data model.  It can help make sure the transforms and derives are leaving the data model in a valid state.  It does this by sending internal messages that are not visible to the outside world.
+
+### Emit
+
+Previously, I had talked about application deltas.  You were probably wondered where those came from.  They come from emitters, which are the next dataflow component.  Emitters emit application delta messages that are eventually placed onto the the app model queue, where some consumer can consume those application deltas.  To briefly summarize the application delta section, there are six kinds of application deltas, **:node-create, :node-destroy, :attr, :value, :transform-enable, and :transform-disable.  Each of these is designed to signal a change in the data model The exception is the transforms.  Transforms define messages which allow an application consumer to use those place those transform messages onto the input queue, where the messages can then go through the dataflow and update the data model.
+
+Emitters are made up of two components.  The first component is a list of input paths into the data model.  The second component is the emitter function.  When of the values corresponding to the ddta model input paths change, the emitter function is called.  The emitter function is designed to take a single argument, which is a tracking map.  By using the tracking map, you can determine what has changed, and can produce the application deltas necessary to signal this change.  For example, if a path was added to the data model, this could be signalled with a :node-create.  If one was removed, it could be :node-destroy.  When a value is changed in the data model, an application delta could be either :attr, or :value, depending on how fine grained the change you want to signal.
+
+Emitters are not not triggered until after the transform, derive and continue functions have already ran.  Thus, the dataflow can be split into two parts, the first part is concerned with changing the data model, and is made up of the transform, derive and continue functions.  The next parts, the emit and output dataflows, are concerned with producing messages and sending them to the app model and output queue respectively.  We can dive into understanding how to make up an emitter function.  Understanding the default emitter is a good place to start.
+
+The default emitter is located at **io.pedestal.app/default-emitter**.  The default emitter can take a single parameter, which is the path prefix.  If you recall, application deltas contain a path element.  For example [:node-create [:todo :tasks 'task-id]] says to create a new node at the path in the vector.  By using a prefix argument, you can automatically add the prefix to all paths.  For example, if you have an emitter that is always concerned with a certain part of the data model, you can express the prefix. In this case, we could say the prefix is [:todo].  Therefore, every application delta will automatically be prefixed by :todo.  If an application delta was going to be [:tasks 'task-id], it would now be [:todo :tasks 'task-id].
+
+Here is how you could define an emit component that uses the default emitter:
+
+```clojure
+;; Vector form
+[#{[:todo]} (io.pedestal.app/default-emitter)]
+
+;; Map form
+{:in #{[:todo]} :fn (io.pedestal.app/default-emitter)}
+```
+
+I should note, the default-emitter is actually returning a function, which takes a single argument, the tracking map.  The default emitter function is designed to look at the tracking map, and use the input paths to determine what has changed.  For example, in this case, we have specified [:todo] as the input path.  This means that within the data model, if the path to :todo, or any of its descendants changes, default-emitter will be called.  For example, changes to [:todo], [:todo :tasks], or [:todo :tasks 'task-4] would all trigger the emitter function to be called.
+
+```clojure
+;; Old Data model
+{}
+
+;; New Data model
+{:todo {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}}}}
+```
+
+Let us assume that there was a new message to the dataflow, and it caused the data model to look like the second map.  There are quite a few different things that has changed, and many ways of interpretating what has happened.  In the case of the default emitter, however, there is only one interpretation.  Since the emitter component we defined earlier had a single input at [:todo], that is how all application deltas will be created relative to.  For example, this would be the output:
+
+```clojure
+[:node-create [] :map]
+[:node-create [:todo] :map]
+[:value [:todo] nil {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}}}]
+```
+
+You might be asking, why does it create the application deltas this way, and not say like this?
+
+```clojure
+[:node-create [] :map]
+[:node-create [:todo] :map]
+[:node-create [:todo :tasks] :map]
+[:value [:todo :tasks] nil {'task-1 {:details "Get new mouse" :id 'task-1}}]
+```
+
+Both are valid ways of describing the changes to the data model.  The answer for why the first one was chosen over the second lies in how we defined the input path to the emitter.  The output is always relative to the paths.  Since we defined a single path at [:todo], everything is happening relative to it.  When the default emitter function detected that :todo was created, it needed to create this node.  However, it also realized that it had to create its parent, which is the root element.  Therefore, it created both **[:node-create [] :map]** and **[:node-create [:todo] :map]**.  Having created all the nodes specified by the input path, it now needs to set the value of the node.  It would look into the data model and realize that it had to create the internal :tasks map and all its children.  This is exactly what it did with **[:value [:todo] nil {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}}}]**.  The old value stored there was nil, and now it is the tasks map.
+
+If, on the other hand, we defined the emitter as follows:
+
+```clojure
+[#{[:todo :tasks]} (io.pedestal.app/default-emitter)]
+```
+
+The output would match the second series of application deltas.
+
+Another important point is that while the emitters detect when the data values at the input paths, or any of their descendants change, it does not signal when an ancestor of sibling changes.  For example, the emitter that we just defined would not detect this change:
+
+```clojure
+;; Old Model
+{:todo
+ {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}}}}
+
+;; New Model
+{:todo
+ {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}}
+  :count 1}}
+```
+
+What changed was that **[:todo :count]** was added.  However, **[:todo :count]** is a sibling to **[:todo :tasks]**, not a descendant.  This would mean that the emitter would not emit any application deltas.  If the emitter was watching **[:app :todo :tasks]**, and there was a change to **[:app :todo]**, or **[:app :other]**, then the emitter would not emit anything, because those are both ancestors.
+
+When the default emitter detects an update in the tracking map at one of its input paths, it will create :value application deltas to reflect the change.  For example, assume that we have a default emitter watching [:todo :tasks].
+
+```clojure
+;; Old Model
+{:todo
+ {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}}}}
+
+;; New Model
+{:todo
+ {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}
+          'task-2 {:details "Get new keyboard" :id 'task-2}}}}
+
+;; Application Delta
+[:value
+ [:todo :tasks]
+ {'task-1 {:details "Get new mouse" :id 'task-1}}
+ {'task-1 {:details "Get new mouse" :id 'task-1}
+  'task-2 {:details "Get new keyboard" :id 'task-2}}]
+```
+
+You can see the old task map is replaced by the new one containing the new task.
+
+The final case handled by the default emitter is when a data model object is removed.  For example,
+
+```clojure
+;; Old Model
+{:todo
+ {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}
+          'task-2 {:details "Get new keyboard" :id 'task-2}}}}
+;; New Model
+{:todo
+ {}}
+
+;; Application Delta
+[:node-destroy [:todo :tasks]]
+```
+
+You might be wondering what would happen if the task's map was removed:
+
+```clojure
+;; Old Model
+{:todo
+ {:tasks {'task-1 {:details "Get new mouse" :id 'task-1}
+          'task-2 {:details "Get new keyboard" :id 'task-2}}}}
+
+;; New Model
+{:todo
+ {:tasks {}}}
+
+;; Application Deltas
+[:value
+ [:tasks :todo]
+ {'task-1 {:details "Get new mouse" :id 'task-1}
+  'task-2 {:details "Get new keyboard" :id 'task-2}}
+ {}]
+```
+
+As you can see, it produces a :value application delta, not a :node-destroy.  This is because the map at [:tasks :todo] changed from having two items, to being empty.  This is considered as the value changing.
+
+#### Understanding Paths and Emitters
+
+When defining the input paths to the emitters you do not necessarily need to specify the exact path sequence.  For example, let us say that you wanted to emit values at something more specific than just [:todo :tasks].  For example, we want to have values for **[:todo :tasks 'task-1]** and **[:todo :tasks 'task-2]**, not just for [:todo :tasks], which gives the whole tasks map.  The naive solution would be to specify **[:todo :tasks 'task-1]** and **[:todo :tasks 'task-2]** in the paths of the emitter.  The problem with this is obvious.  How are you going to deal with new tasks that are added?  The solution is to use wild card paths.
+
+Wild card paths are designed to match any value.  There are two kinds of wild cards, :* and :**.
+
+##### :*
+This defines a single wildcard value.  It is designed to match any element at the given value.  For example, if you had a path of **[:todo :tasks :*]**, it would match both **[:todo :tasks 'task-1]** and **[:todo :tasks 'task-2]**, allowing you to specify just one emitter.
+
+```clojure
+[#{[:todo :tasks :*]} (io.pedestal.app/default-emitter)]
+
+;; Old Model
+{}
+
+;; New Model
+{:todo {:tasks {'task-1 {:details "Do something special" :id 'task-1}}}}
+
+;; Application Deltas
+[[:node-create [] :map]
+ [:node-create [:todo] :map]
+ [:node-create [:todo :tasks] :map]
+ [:node-create [:todo :tasks 'task-1] :map]
+ [:value [:todo :tasks 'task-1] nil {:details "Do something special" :id 'task-1}]]
+
+;; New Model
+{:todo {:tasks {'task-1 {:details "Do something special" :id 'task-1}
+                'task-2 {:details "Do something less special" :id 'task-2}}}}
+
+;; Application Delta
+[[:node-create [:todo :tasks 'task-2] :map]
+ [:value [:todo :tasks 'task-2] nil {:details "Do something less special" :id 'task-2}]]
+```
+
+As you can see, the values produced are more fine grained compared to an emitter whose input path was  **[:todo :tasks]**.
+
+You can specify more than one wild card path, for example:
+
+```clojure
+
+[#{[:todo :tasks :* :*]} (io.pedestal.app/default-emitter)]
+
+;; Old Model
+{}
+
+;; New Model
+{:todo {:tasks {'task-1 {:details "Do something special" :id 'task-1}}}}
+
+;; Application Deltas
+[[:node-create [] :map]
+ [:node-create [:todo] :map]
+ [:node-create [:todo :tasks] :map]
+ [:node-create [:todo :tasks 'task-1] :map]
+ [:node-create [:todo :tasks 'task-1 :details] :map]
+ [:node-create [:todo :tasks 'task-1 :id] :map]
+ [:value [:todo :tasks 'task-1 :details] nil {:details "Do something special"}]
+ [:value [:todo :tasks 'task-1 :id] nil {:id 'task-1}]]
+
+;; New Model
+{:todo {:tasks {'task-1 {:details "Do something special" :id 'task-1}
+                'task-2 {:details "Do something less special" :id 'task-2}}}}
+
+;; Application Delta
+[[:node-create [:todo :tasks 'task-2] :map]
+ [:node-create [:todo :tasks 'task-2 :details] :map]
+ [:node-create [:todo :tasks 'task-2 :id] :map]
+ [:value [:todo :tasks 'task-2 :details] nil {:details "Do something less special"}]
+ [:value [:todo :tasks 'task-2 :id] nil {:id 'task-2}]]
+```
+
+You can specify as many wild card characters as you require, and you can mix and match them, for example, **[:app :todo :* :details]**, **[:* :* :something :* :*]** and **[:* :a :b :* :*]** would all be valid paths.
 
 
 
@@ -539,3 +853,4 @@ So let us assume that the :create-todo message was sent to the application and t
 
 Will have to change the other attribute values, they aren't needed, since the derive functions will actually create them.
  
+                
