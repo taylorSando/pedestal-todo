@@ -12,34 +12,3 @@
   :resource-paths ["config"]
   :target-path "out/"
   :aliases {"dumbrepl" ["trampoline" "run" "-m" "clojure.main/main"]})
-
-
-;; Old Model
-{}
-
-;; New Model
-{:todo {:tasks {'task-1 {:details "Do something special" :id 'task-1}}}}
-
-;; Application Deltas
-[[:node-create [] :map]
- [:node-create [:todo] :map]
- [:node-create [:todo :tasks] :map]
- [:node-create [:todo :tasks 'task-1] :map]
- [:node-create [:todo :tasks 'task-1 :details] :map]
- [:node-create [:todo :tasks 'task-1 :id] :map]
- [:value [:todo :tasks 'task-1 :details] nil {:details "Do something special"}]
- [:value [:todo :tasks 'task-1 :id] nil {:id 'task-1}]]
-
-;; New Model
-{:todo {:tasks {'task-1 {:details "Do something special" :id 'task-1}
-                'task-2 {:details "Do something less special" :id 'task-2}}}}
-
-;; Application Delta
-[[:node-create [:todo :tasks 'task-2] :map]
- [:node-create [:todo :tasks 'task-2 :details] :map]
- [:node-create [:todo :tasks 'task-2 :id] :map]
- [:value [:todo :tasks 'task-2 :details] nil {:details "Do something less special"}]
- [:value [:todo :tasks 'task-2 :id] nil {:id 'task-2}]]
-
-
-

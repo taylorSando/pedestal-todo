@@ -1,3 +1,4 @@
+
 (ns ^:shared todo.behavior
     (:require [clojure.string :as string]
               [io.pedestal.app :as app]
@@ -125,17 +126,3 @@
            :fn (app/default-emitter nil) :mode :always}]})
 
 
-
-;; Create individual tasks
-;; [:todo :tasks :*]
-;; Leave add task at [:todo :tasks]
-;; Will make emitting easier
-
-;; Don't try to specify :** in the emitter, it will consider all children
-;; to be values.  Won't createv new node-create values
-(io.pedestal.app.messages/fill :update-details
-                               [{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
-                                 io.pedestal.app.messages/type :update-details}
-                                (io.pedestal.app.messages/param :details) {}]
-                               { :details "Pick up the cat"}
-                               )

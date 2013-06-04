@@ -37,6 +37,7 @@
     ;;
     ;; Start the application
     (app/begin app)
+    (.setInterval js/window #(.log js/console (pr-str (:data-model app))) 3000)
     ;; Send a message to the application so that it does something.
     (p/put-message (:input app) {msg/type :create-todo msg/topic [:todo]})    
     ;; Returning the app and app-model from the main function allows
