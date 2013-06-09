@@ -18,7 +18,8 @@ The app depends upon the app-tools and app-template components from the pedestal
 
 To run, clone the repo
 
-Navigate to the root directory of repo
+```
+cd pedestal-todo/client
 
 Create a repl
 
