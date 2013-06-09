@@ -16,7 +16,7 @@ The app depends upon the app-tools and app-template components from the pedestal
 
 ### Project Installation
 
-To run, clone the repo
+To run, clone the repo, then change into the client directory inside the pedestal-todo directory.
 
 ```
 cd pedestal-todo/client
