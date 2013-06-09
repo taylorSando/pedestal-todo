@@ -20,6 +20,7 @@ To run, clone the repo
 
 ```
 cd pedestal-todo/client
+```
 
 Create a repl
 
