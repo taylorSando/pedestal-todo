@@ -27,7 +27,7 @@ In this example, there is both  **:details**, and  **:completed** in the message
 
 Now that we know that messages are used to decouple the components of an application, we should talk about what those components are.  The first component is the **data model**.  The data model stores all the information that an application needs.  This is an internal part of an application, it is not exposed to the public.  Instead, the outside world interacts with the data model by means of the input queue, which is another component of the application.  The input queue takes messages, one by one, and allows the application to process them.  The part of the application that processes the messages on the input queue is the **dataflow**.  The dataflow is a series of functions that process messages, alter the data model, and send their output in the form of messages, to two application components.  These components are the **app model queue** and the **output queue**.
 
-Thus, we have the data model, the dataflow, and the three queues: app model, input and output.  These components make up the primary application, and communication is provided through **messages**.  **Messages** are passed to the **input queue**, which are handled by the **dataflow**.  The dataflow processes the messages.  It will can update the **data model**, send messages to the **output queue** or the **app model queue**.  The messages on the output queue are handled by a services component of the application.  Generally, this means that these messages will be sent to a server to have some external effect.  Messages sent to the app model queue, on the other hand, are generally going to an area of the application that is concerned with the changes in the data model.   
+Thus, we have the data model, the dataflow, and the three queues: app model, input and output.  These components make up the primary application, and communication is provided through **messages**.  **Messages** are passed to the **input queue**, which are handled by the **dataflow**.  The dataflow processes the messages.  It can update the **data model**, send messages to the **output queue** or the **app model queue**.  The messages on the output queue are handled by a services component of the application.  Generally, this means that these messages will be sent to a server to have some external effect.  Messages sent to the app model queue, on the other hand, are generally going to an area of the application that is concerned with the changes in the data model.   
 
 The messages on the app model queue are special.  The are called **application deltas**, and they are reporting what has changed in the data model.  Application components that subscribe to the app model queue can be informed what has changed in the application data model without having to directly access the data model.  The **app model consumer** is a separate component from the main application.  As it says in the name, it's primary purpose is to consume messages from the application's app model queue.  The default app model consumer that comes with pedestal is created in the **io.pedestal.app.render** namespace, using **io.pedestal.app.render/consume-app-model**.
 
@@ -39,9 +39,9 @@ The push renderer is located in **io.pedestal.app.render.push** namespace.  Inte
 
 The push renderer contains a rendering configuration.  This configuration is a series of functions that are concerned with application deltas from the app model queue.  The push renderer receives each individual app delta from the app model consumer, which is subscribed to the app model queue.  The rendering functions receive three arguments.  The first is the internal DOM renderer object that the push renderer built.  The second item is the actual application delta.  The third item is the input queue.  Since the app model consumer has a reference to the input queue, it passes this to the push renderer, which passes it to the rendering function.
 
-What's happening is that the app model consumer is receiving an application delta message from the app model queue.  It then passes this to the push renderer.  The push renderer than examines each of the rendering function in its configuration looking for a match.  If it finds a match, it passes the DOM renderer object, the application delta, and the input queue to the matching rendering function.  The rendering function then must decide what to do with the three objects.
+What's happening is that the app model consumer is receiving an application delta message from the app model queue.  It then passes this to the push renderer.  The push renderer then examines each of the rendering function in its configuration looking for a match.  If it finds a match, it passes the DOM renderer object, the application delta, and the input queue to the matching rendering function.  The rendering function then must decide what to do with the three objects.
 
-So let's recap.  The main application is made up of an internal data model that holds all the information in the application.  It uses three queues, the input, output and app model queues.  The input queue receives input messages and passes them to the dataflow.  The dataflow processes the messages.  The dataflow can update the data model, and send new messages to either the output, or the app model queues.  The app model queue receives messages that deal with changes in the data model, while the output queue deals with messages that will be sent to an external service, such as the server.  External entities, such as the app model consumer, can subscribe to the app model queue to be informed in what has changed in the data model.  The app model consumer generally has a rendering function, which is used to render the app model deltas onto the screen.
+So let's recap.  The main application is made up of an internal data model that holds all the information in the application.  It uses three queues, the input, output and app model queues.  The input queue receives input messages and passes them to the dataflow.  The dataflow processes the messages.  The dataflow can update the data model, and send new messages to either the output, or the app model queues.  The app model queue receives messages that deal with changes in the data model, while the output queue deals with messages that will be sent to an external service, such as the server.  External entities, such as the app model consumer, can subscribe to the app model queue to be informed about what has changed in the data model.  The app model consumer generally has a rendering function, which is used to render the app model deltas onto the screen.
 
 Two options:
 
@@ -61,7 +61,7 @@ When the data model creates a new map or vector value, a :node-create applicatio
 [:node-create [] :map]
 ```
 
-The first item in the application delta is the type, which is :node-create.  The second item is the path.  The third item is what is being created.  In this example, an empty data model map is converted into a :node-create statement, at the root path, and that it's creating a map.  The path can be thought of as a path in a tree.  For example, let us say you had a path of [:todo :tasks 'task-4 :id].  This would mean that :todo is a child of the root path, :tasks is a child of :todo, 'task-4 is a child of :todo, and :id is a child of 'task-4.
+The first item in the application delta is the type, which is :node-create.  The second item is the path.  The third item is what is being created.  In this example, an empty data model map is converted into a :node-create statement, at the root path, and that it's creating a map.  The path can be thought of as a path in a tree.  For example, let us say you had a path of [:todo :tasks 'task-4 :id].  This would mean that :todo is a child of the root path, :tasks is a child of :todo, 'task-4 is a child of :tasks, and :id is a child of 'task-4.
 
 The sequence of application deltas to create this could be:
 
@@ -206,14 +206,14 @@ The most common use case for consuming application deltas is a view of some kind
  [:todo :tasks 'task-4 :details]
  :change-task
  [{io.pedestal.app.messages/topic [:todo :tasks 'task-4 :details]
-   io.pedestal.app.messages/type :update-details}
-   (io.pedestal.app.messages/param :details) {}]
+   io.pedestal.app.messages/type :update-details
+   (io.pedestal.app.messages/param :details) {}}]
 ]
 ```
 
 A :transform-enable generally has four components.  The first item is the application delta type, which is obviously :transform-enable.  The second item is the path, the third item is the transform key, which helps identify the transform.  The fourth item is a vector containing messages.  In this example, we have a vector containing a single message.
 
-The message identifies the topic as [:todo :tasks 'task-4 :details] and the type as :update-details.  It also contains a param function.  This can be used will the fill function from the **io.pedestal.app.messages** namespace.  For example, you can use **io.pedestal.app.messages/fill** with the messages vector in the following way:
+The message identifies the topic as [:todo :tasks 'task-4 :details] and the type as :update-details.  It also contains a param function.  This can be used with the fill function from the **io.pedestal.app.messages** namespace.  For example, you can use **io.pedestal.app.messages/fill** with the messages vector in the following way:
 
 ```clojure
 (io.pedestal.app.messages/fill :update-details
@@ -300,7 +300,7 @@ A :transform-disable is made up of three items.  The first is the type, the seco
 
 ## Dataflow
 
-The dataflow is the actual functions that control an application.  The dataflow is designed to take messages from the input queue.  It then processes these messages, one by one.  As it is processing the message, it might update the data model.  It can also produce messages of its own.  For example, it may also produce application delta messages that will be placed on the app model queue. It may also produce output messages, which are placed onto the output queue, which may be consumed by some external service.  There are five dataflow functions, transforms, derives, continues, emits and effects.
+The dataflow are the actual functions that control an application.  The dataflow is designed to take messages from the input queue.  It then processes these messages, one by one.  As it is processing the message, it might update the data model.  It can also produce messages of its own.  For example, it may also produce application delta messages that will be placed on the app model queue. It may also produce output messages, which are placed onto the output queue, which may be consumed by some external service.  There are five dataflow functions, transforms, derives, continues, emits and effects.
 
 ## Transform
 
@@ -349,7 +349,7 @@ When a message is found to match a transform dataflow, the transform function is
 ```
 
 
-So the message is passed to the input queue, and into the dataflow.  The only transform component that can handle the message is the one with the key of :new-task and an output task of [:todo].  This is because :new-task matches the message's type, and the [:todo] of the topic matches the transform's output path.  Next, the transform function is called, which receives the old todo data along with the message.  Inside the function, we are associated the old todo with the tasks.  Since tasks is a vector, we are conj'ing the new task onto the old tasks.  We automatically create an id, but use the extract the details from the message and create a map.  This is placed onto the tasks.  At the end, the data model is now updated.
+So the message is passed to the input queue, and into the dataflow.  The only transform component that can handle the message is the one with the key of :new-task and an output task of [:todo].  This is because :new-task matches the message's type, and the [:todo] of the topic matches the transform's output path.  Next, the transform function is called, which receives the old todo data along with the message.  Inside the function, we are associated the old todo with the tasks.  Since tasks is a vector, we are conj'ing the new task onto the old tasks.  We automatically create an id, and extract the details from the message and create a map.  This is placed in tasks.  At the end, the data model is now updated.
 
 There are actually two ways of defining a transform dataflow, with a vector, or with a map.
 
@@ -413,7 +413,7 @@ In the case of the wind chill function, we are interested in the new values for 
   (:temperature msg))
 
 (defn wind-speed-fn [old-speed msg]
-  (:wind-speed msg msg))
+  (:wind-speed msg))
 
 (defn wind-chill-fn [old-wind-chill inputs]
   (let [t (get-in inputs [:new-model :app :sensor :temperature])
@@ -427,7 +427,7 @@ In the case of the wind chill function, we are interested in the new values for 
    :derive [[#{[:app :sensor :temperature] [:app :sensor :wind-speed]} [:app :values :wind-chill] wind-chill-fn]]})
 ```
 
-Transform functions are called first.  After they are finished, the derive functions are given a chance to run.  The Derive dataflow components only run if their inputs change.  It's possible for the output of one derive function to be the input of another derive function.  This means that you can have calculations that are dependent on other calculations.  For example, if there was a variable that depended on the wind chill, it would be called when the wind chill changed, and the wind chill would change if the temperature, or the wind speed changed.
+Transform functions are called first.  After they are finished, the derive functions are given a chance to run.  The Derive dataflow components only run if their inputs change.  It's possible for the output of one derive function to be the input of another derive function.  This means that you can have calculations that are dependent on other calculations.  For example, if there was a variable that depended on the wind chill, it would be called when the wind chill changed, and the wind chill would change if the temperature and/or the wind speed changed.
 
 ### Continue
 
@@ -474,11 +474,11 @@ To summarize, continue functions are designed to act as a kind of validation on 
 
 ### Emit
 
-Previously, I had talked about application deltas.  You were probably wondered where those came from.  They come from emitters, which are the next dataflow component.  Emitters emit application delta messages that are eventually placed onto the the app model queue, where some consumer can consume those application deltas.  To briefly summarize the application delta section, there are six kinds of application deltas, **:node-create, :node-destroy, :attr, :value, :transform-enable, and :transform-disable.  Each of these is designed to signal a change in the data model The exception is the transforms.  Transforms define messages which allow an application consumer to use those place those transform messages onto the input queue, where the messages can then go through the dataflow and update the data model.
+Previously, I had talked about application deltas.  You were probably wondered where those came from.  They come from emitters, which are the next dataflow component.  Emitters emit application delta messages that are eventually placed onto the the app model queue, where some consumer can consume those application deltas.  To briefly summarize the application delta section, there are six kinds of application deltas, **:node-create, :node-destroy, :attr, :value, :transform-enable, and :transform-disable.  Each of these is designed to signal a change in the data model The exceptions are the transforms.  Transforms define messages which allow an application consumer to use those to place transform messages onto the input queue, where the messages can then go through the dataflow and update the data model.
 
-Emitters are made up of two components.  The first component is a list of input paths into the data model.  The second component is the emitter function.  When of the values corresponding to the ddta model input paths change, the emitter function is called.  The emitter function is designed to take a single argument, which is a tracking map.  By using the tracking map, you can determine what has changed, and can produce the application deltas necessary to signal this change.  For example, if a path was added to the data model, this could be signalled with a :node-create.  If one was removed, it could be :node-destroy.  When a value is changed in the data model, an application delta could be either :attr, or :value, depending on how fine grained the change you want to signal.
+Emitters are made up of two components.  The first component is a list of input paths into the data model.  The second component is the emitter function.  When one of the values corresponding to the data model input paths change, the emitter function is called.  The emitter function is designed to take a single argument, which is a tracking map.  By using the tracking map, you can determine what has changed, and can produce the application deltas necessary to signal this change.  For example, if a path was added to the data model, this could be signalled with a :node-create.  If one was removed, it could be :node-destroy.  When a value is changed in the data model, an application delta could be either :attr, or :value, depending on how fine grained the change you want to signal.
 
-Emitters are not not triggered until after the transform, derive and continue functions have already ran.  Thus, the dataflow can be split into two parts, the first part is concerned with changing the data model, and is made up of the transform, derive and continue functions.  The next parts, the emit and output dataflows, are concerned with producing messages and sending them to the app model and output queue respectively.  We can dive into understanding how to make up an emitter function.  Understanding the default emitter is a good place to start.
+Emitters are not triggered until after the transform, derive and continue functions have already ran.  Thus, the dataflow can be split into two parts, the first part is concerned with changing the data model, and is made up of the transform, derive and continue functions.  The next parts, the emit and output dataflows, are concerned with producing messages and sending them to the app model and output queue respectively.  We can dive into understanding how to make up an emitter function.  Understanding the default emitter is a good place to start.
 
 The default emitter is located at **io.pedestal.app/default-emitter**.  The default emitter can take a single parameter, which is the path prefix.  If you recall, application deltas contain a path element.  For example [:node-create [:todo :tasks 'task-id]] says to create a new node at the path in the vector.  By using a prefix argument, you can automatically add the prefix to all paths.  For example, if you have an emitter that is always concerned with a certain part of the data model, you can express the prefix. In this case, we could say the prefix is [:todo].  Therefore, every application delta will automatically be prefixed by :todo.  If an application delta was going to be [:tasks 'task-id], it would now be [:todo :tasks 'task-id].
 
@@ -595,7 +595,7 @@ You might be wondering what would happen if the task's map was removed:
 
 ;; Application Deltas
 [:value
- [:tasks :todo]
+ [:todo :tasks]
  {'task-1 {:details "Get new mouse" :id 'task-1}
   'task-2 {:details "Get new keyboard" :id 'task-2}}
  {}]
@@ -677,7 +677,7 @@ You can specify as many wild card characters as you require, and you can mix and
 
 ### Effect
 
-The final dataflow component is **effect**.  Effect is used to generate output messages  These messages will be placed onto the output queue.  Once on the output queue, the messages can be consumed by a service consuming the output queue.  Effects are made up of two components, an list of inputs, and an effect function.  As with the other dataflow components, an effect can be defined using two methods, a vector and a map form.
+The final dataflow component is **effect**.  Effect is used to generate output messages  These messages will be placed onto the output queue.  Once on the output queue, the messages can be consumed by a service consuming the output queue.  Effects are made up of two components, a list of inputs, and an effect function.  As with the other dataflow components, an effect can be defined using two methods, a vector and a map form.
 
 ```clojure
 [#{[:path :to :input]} 'effect-fn]
