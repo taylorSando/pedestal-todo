@@ -1,4 +1,3 @@
-
 (ns ^:shared todo.behavior
     (:require [clojure.string :as string]
               [io.pedestal.app :as app]
