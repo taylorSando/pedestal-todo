@@ -761,7 +761,7 @@ Emits allow init deltas,
 
 The todo app has become the hello world of the MVC world, therefore, I decided to make one using the pedestal framework.  Pedestal takes awhile to really get your ahead around.   However, the steeper learning curve compared to other MVC frameworks around is almost certainly due to the infancy of the project, and the lack of good documentation and tutorials.  I learned what I did primarily by going through the source code.  As of writing this, I know there are efforts to improve the documentation, and there are new tutorials in the pipeline.  I should be releasing a series of my own in depth overview of pedestal.  I will post links to where they can be found when I get around to writing them.
 
-Everything starts in **app/src/todo/services/start.cljs** this is where the magic happens for this demo app.  There are actually two start files, there is also one in **app/src/todo/start.cljs**.  You'll have to ignore that one for now.
+Everything starts in **app/src/todo/simulated/start.cljs** this is where the magic happens for this demo app.  There are actually two start files, there is also one in **app/src/todo/start.cljs**.  You'll have to ignore that one for now.
 
 ```clojure
 (defn ^:export main []
@@ -778,7 +778,7 @@ Everything starts in **app/src/todo/services/start.cljs** this is where the magi
 
 This is extracting the url value to determine the kind of rendering engine that is used.  If you were to enter **http://localhost:3000/todo-data-ui.html?renderer=auto** you would get the auto renderer.  This is very useful for debugging purposes.  I'll explain what that does in some later section.  For now, use the regular renderer. Do this by going to **http://localhost:3000/todo-data-ui.html** You should see the todo application, and should be able to interact with it.
 
-Back to the code and how this happens.  renderer is extracting the query parameter.  If it's auto, it grabs the automatic renderer.  If it's anything else, it grabs the one that I created, which is located at **app/src/todo/rendering.cljs**.  This is where the mapping between application deltas and the DOM happen.  When the application's data model changes, it sends out what are called Application Deltas.  There are six of them: **:node-create, :node-destroy, :transform-enable, :transform-disable, :value, and :attr**.  So what is an Application Delta?  It's a report of a change in the data model in a way that maps into a tree data structure.  For example, let us say that you had a data model like the following:
+Back to the code and how this happens. Renderer is extracting the query parameter.  If it's auto, it grabs the automatic renderer.  If it's anything else, it grabs the one that I created, which is located at **app/src/todo/rendering.cljs**.  This is where the mapping between application deltas and the DOM happen.  When the application's data model changes, it sends out what are called Application Deltas.  There are six of them: **:node-create, :node-destroy, :transform-enable, :transform-disable, :value, and :attr**.  So what is an Application Delta?  It's a report of a change in the data model in a way that maps into a tree data structure.  For example, let us say that you had a data model like the following:
 
 ```clojure
 {:todo
@@ -786,12 +786,12 @@ Back to the code and how this happens.  renderer is extracting the query paramet
   {'task1 {:task-id 'task1
            :details "Pick up milk"}}
   {'task2 {:task-id 'task2
-                  :details "Pick up dogs"}}}}
+           :details "Pick up dogs"}}}}
 ```
 
 Implementing this in a tree structure is quite easy.  Obviouslly, the root is :todo, and it has a single child, which is :tasks.  :tasks itself has two children, 'task1 and 'task2.  These both have their own children, :task-id and :details.  Paths are described by a vector.   For example, here is the path to task1's details: **[:todo :tasks 'task1 :details]**
 
-In order for the rendering engine to be able to display the data model, it does so through a series of changes.  For example, more than likely, you are starting with an empty data model.  **{}**.  Then, you would create the todo map, **{:todo {}}**.  Next, you could create the :tasks, **{{:todo {:tasks {}}}}**.  Don't worry about how this creation process happens, I'll explain how it works later.  What's important to note here is that as the data model is changing, there is the opportunity to report the application deltas.  In this case, the data model can emit change data in the form of these application deltas.  For example, in this case, the following could be produced:
+In order for the rendering engine to be able to display the data model, it does so through a series of changes.  For example, more than likely, you are starting with an empty data model, **{}**.  Then, you would create the todo map, **{:todo {}}**.  Next, you could create the :tasks, **{:todo {:tasks {}}}**.  Don't worry about how this creation process happens, I'll explain how it works later.  What's important to note here is that as the data model is changing, there is the opportunity to report the application deltas.  In this case, the data model can emit change data in the form of these application deltas.  For example, in this case, the following could be produced:
 
 ```clojure
 [:node-create [] :map]
@@ -857,7 +857,7 @@ The format for a rendering config is that it should be a vector of vectors.  Eac
     (dom/append! (dom/by-id parent) (html))))
 ```
 
-Just focus on the arguments for now, don't worry about what's happening inside.  You should see 3 arguments.  The first argument is the renderer.  This represents a DOM-like object that is used to help manipulate the DOM.  I'll have more to see about this later.  The second argument is a destructing pattern.  This represents the application delta.  In this case, since :node-create specifies a vector of two, we have a destructing form of **[_ path]**.  The full pattern would actually be more like **[type path]**, where type is going to equal :node-create and path is going to equal [:todo].  The third parameter, transmitter, is the input queue.  This can be used to send messages back to the application.  I'll have more to say about the input queue, and how it works later.
+Just focus on the arguments for now, don't worry about what's happening inside.  You should see 3 arguments.  The first argument is the renderer.  This represents a DOM-like object that is used to help manipulate the DOM.  I'll have more to see about this later.  The second argument is a destructuring pattern.  This represents the application delta.  In this case, since :node-create specifies a vector of two, we have a destructuring form of **[_ path]**.  The full pattern would actually be more like **[type path]**, where type is going to equal :node-create and path is going to equal [:todo].  The third parameter, transmitter, is the input queue.  This can be used to send messages back to the application.  I'll have more to say about the input queue, and how it works later.
 
 This was just a basic introduction to the rendering functions, the application deltas, and the rendering config.  You should have a very basic idea of how they work.  I will move on for now, but we will be revisiting all this ideas later.
 
