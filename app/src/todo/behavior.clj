@@ -19,10 +19,10 @@
         tasks (get-in inputs [:new-model :todo :tasks])]
     (if (= filter-type :any)
       tasks
-      (into {} (filter (fn [[task-id task :as tm]]
-                         (cond
-                          (and (= filter-type :completed) (:completed task)) tm
-                          (and (= filter-type :active) (not (:completed task))) tm))
+      (into {} (filter (fn [[task-id task]]
+                         (or
+                          (and (= filter-type :completed) (:completed task))
+                          (and (= filter-type :active) (not (:completed task)))))
                        tasks)))))
 
 ;; This sets the filter on the tasks
@@ -101,7 +101,7 @@
 
 (defn count-tasks [_ inputs]
   ;; Count all the active tasks
-  (count (remove (fn [[k t]] (:completed t)) (get-in inputs [:new-model :todo :tasks]))))
+  (count (remove (fn [[task-id task]] (:completed task)) (get-in inputs [:new-model :todo :tasks]))))
 
 (defn completed-count [_ inputs]
   ;; Count all the completed tasks
