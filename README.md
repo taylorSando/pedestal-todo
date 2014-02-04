@@ -3,9 +3,11 @@ A todo app written with the pedestal framework.
 
 ### Project Installation
 
-To run, clone the repo
+To run, clone the repo, then change into the client directory inside the pedestal-todo directory.
 
-Navigate to the root directory of repo
+```
+cd pedestal-todo/client
+```
 
 Create a repl
 
